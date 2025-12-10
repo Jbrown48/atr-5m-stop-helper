@@ -1,0 +1,76 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <title>ATR 5-Minute Stop Helper</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 2rem; max-width: 800px; }
+        input[type=text] { padding: 0.5rem; width: 220px; }
+        button { padding: 0.5rem 1rem; }
+        .card { border: 1px solid #ccc; padding: 1rem; margin-top: 1rem; border-radius: 6px; }
+        .error { color: #b00; margin-top: 1rem; }
+        h1, h2 { margin-top: 0; }
+    </style>
+</head>
+<body>
+    <h1>ATR 5-Minute Stop Helper</h1>
+    <form method="POST">
+        <input type="text" name="ticker" placeholder="Enter ticker (e.g. SPY)" required>
+        <button type="submit">Run</button>
+    </form>
+
+    {% if error %}
+      <div class="error">{{ error }}</div>
+    {% endif %}
+
+    {% if result %}
+    <div class="card">
+        <h2>{{ result.ticker }} – Volatility Snapshot</h2>
+        <p>
+            Daily ATR(14): <strong>{{ "%.2f"|format(result.atr_daily) }}</strong> points.
+            This is the average full-day range over the last 14 sessions.
+        </p>
+        <p>
+            Current 5-minute ATR (time-of-day adjusted):
+            <strong>{{ "%.2f"|format(result.atr_5m) }}</strong> points at
+            <strong>{{ result.timestamp }}</strong>.
+            Treat this as a typical 5-minute bar move right now.
+        </p>
+    </div>
+
+    <div class="card">
+        <h2>How to use this on a 5-minute chart</h2>
+        <p>
+            Example bar (last completed 5m): close =
+            <strong>{{ "%.2f"|format(result.entry_price) }}</strong>,
+            low = <strong>{{ "%.2f"|format(result.swing_low) }}</strong>,
+            high = <strong>{{ "%.2f"|format(result.swing_high) }}</strong>.
+        </p>
+        <p>
+            <strong>For a long setup:</strong><br>
+            - Use the last 5-minute swing low as your structure level.<br>
+            - Place the stop <strong>{{ "%.1f"|format(result.k_atr) }} × 5m ATR</strong>
+              below that swing low.<br>
+            → Suggested stop ≈ <strong>{{ "%.2f"|format(result.stop_long) }}</strong>,
+            which is <strong>{{ "%.2f"|format(result.dist_long) }}</strong> points under the example close.
+        </p>
+        <p>
+            <strong>For a short setup:</strong><br>
+            - Use the last 5-minute swing high as your structure level.<br>
+            - Place the stop <strong>{{ "%.1f"|format(result.k_atr) }} × 5m ATR</strong>
+              above that swing high.<br>
+            → Suggested stop ≈ <strong>{{ "%.2f"|format(result.stop_short) }}</strong>,
+            which is <strong>{{ "%.2f"|format(result.dist_short) }}</strong> points above the example close.
+        </p>
+        <p>
+            <strong>Position sizing idea:</strong><br>
+            - Decide your dollar risk per trade (e.g. $1,000).<br>
+            - Divide that by the stop distance in points to get max share size.<br>
+            Example: if the long stop is {{ "%.2f"|format(result.dist_long) }} points away,
+            max size ≈ 1000 / {{ "%.2f"|format(result.dist_long) }} shares
+            (or equivalent notional in options).
+        </p>
+    </div>
+    {% endif %}
+</body>
+</html>
