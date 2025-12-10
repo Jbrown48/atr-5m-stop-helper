@@ -23,7 +23,9 @@ def download_data(ticker: str, days_daily: int = 30, days_intraday: int = 5):
     if intra.empty or daily.empty:
         return daily, intra
 
+    
     # Assume timestamps are UTC from yfinance, convert to US/Eastern and filter RTH
+    if intra.index.tz is None:
     intra = intra.tz_localize(
         "UTC", level=0, nonexistent="shift_forward", ambiguous="NaT"
     ).tz_convert("US/Eastern")
