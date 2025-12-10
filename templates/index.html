@@ -2,20 +2,49 @@
 <html>
 <head>
     <meta charset="utf-8">
-    <title>ATR 5-Minute Stop Helper</title>
+    <title>ATR Intraday Stop Helper</title>
     <style>
-        body { font-family: Arial, sans-serif; margin: 2rem; max-width: 800px; }
-        input[type=text] { padding: 0.5rem; width: 220px; }
-        button { padding: 0.5rem 1rem; }
+        body { font-family: Arial, sans-serif; margin: 2rem; max-width: 900px; }
+        input[type=text], input[type=number], select {
+            padding: 0.5rem; margin-right: 0.5rem; margin-top: 0.25rem;
+        }
+        button { padding: 0.5rem 1rem; margin-top: 0.5rem; }
         .card { border: 1px solid #ccc; padding: 1rem; margin-top: 1rem; border-radius: 6px; }
         .error { color: #b00; margin-top: 1rem; }
         h1, h2 { margin-top: 0; }
+        label { display: inline-block; margin-top: 0.25rem; }
     </style>
 </head>
 <body>
-    <h1>ATR 5-Minute Stop Helper</h1>
+    <h1>ATR Intraday Stop Helper</h1>
     <form method="POST">
-        <input type="text" name="ticker" placeholder="Enter ticker (e.g. SPY)" required>
+        <div>
+            <label for="ticker">Ticker:</label>
+            <input type="text" id="ticker" name="ticker" placeholder="e.g. SPY" required>
+        </div>
+
+        <div>
+            <label for="timeframe">Timeframe for intraday logic:</label>
+            <select id="timeframe" name="timeframe">
+                <option value="1m" {% if current_tf == "1m" %}selected{% endif %}>1-minute</option>
+                <option value="5m" {% if current_tf == "5m" %}selected{% endif %}>5-minute</option>
+            </select>
+        </div>
+
+        <div>
+            <label for="k_atr">ATR multiple (k):</label>
+            <input type="number" id="k_atr" name="k_atr" step="0.1" value="0.7">
+            <small>Used as k × intraday ATR beyond the swing.</small>
+        </div>
+
+        <div>
+            <label for="dollar_risk">Dollar risk per trade (optional):</label>
+            <input type="number" id="dollar_risk" name="dollar_risk" step="1"
+                   placeholder="e.g. 1000"
+                   value="{{ current_dollar_risk }}">
+            <small>Used to compute suggested share size.</small>
+        </div>
+
         <button type="submit">Run</button>
     </form>
 
@@ -31,45 +60,64 @@
             This is the average full-day range over the last 14 sessions.
         </p>
         <p>
-            Current 5-minute ATR (time-of-day adjusted):
-            <strong>{{ "%.2f"|format(result.atr_5m) }}</strong> points at
+            Current {{ result.tf }} ATR (time-of-day adjusted):
+            <strong>{{ "%.2f"|format(result.atr_tf) }}</strong> points at
             <strong>{{ result.timestamp }}</strong>.
-            Treat this as a typical 5-minute bar move right now.
+            Treat this as a typical {{ result.tf }} bar move right now.
         </p>
     </div>
 
     <div class="card">
-        <h2>How to use this on a 5-minute chart</h2>
+        <h2>How to use this on your {{ result.tf }} chart</h2>
         <p>
-            Example bar (last completed 5m): close =
+            Example bar (last completed {{ result.tf }}): close =
             <strong>{{ "%.2f"|format(result.entry_price) }}</strong>,
             low = <strong>{{ "%.2f"|format(result.swing_low) }}</strong>,
             high = <strong>{{ "%.2f"|format(result.swing_high) }}</strong>.
         </p>
         <p>
             <strong>For a long setup:</strong><br>
-            - Use the last 5-minute swing low as your structure level.<br>
-            - Place the stop <strong>{{ "%.1f"|format(result.k_atr) }} × 5m ATR</strong>
+            - Use the last {{ result.tf }} swing low as your structure level.<br>
+            - Place the stop <strong>{{ "%.1f"|format(result.k_atr) }} × {{ result.tf }} ATR</strong>
               below that swing low.<br>
             → Suggested stop ≈ <strong>{{ "%.2f"|format(result.stop_long) }}</strong>,
             which is <strong>{{ "%.2f"|format(result.dist_long) }}</strong> points under the example close.
         </p>
         <p>
             <strong>For a short setup:</strong><br>
-            - Use the last 5-minute swing high as your structure level.<br>
-            - Place the stop <strong>{{ "%.1f"|format(result.k_atr) }} × 5m ATR</strong>
+            - Use the last {{ result.tf }} swing high as your structure level.<br>
+            - Place the stop <strong>{{ "%.1f"|format(result.k_atr) }} × {{ result.tf }} ATR</strong>
               above that swing high.<br>
             → Suggested stop ≈ <strong>{{ "%.2f"|format(result.stop_short) }}</strong>,
             which is <strong>{{ "%.2f"|format(result.dist_short) }}</strong> points above the example close.
         </p>
+
+        {% if result.dollar_risk and (result.shares_long or result.shares_short) %}
         <p>
-            <strong>Position sizing idea:</strong><br>
-            - Decide your dollar risk per trade (e.g. $1,000).<br>
-            - Divide that by the stop distance in points to get max share size.<br>
-            Example: if the long stop is {{ "%.2f"|format(result.dist_long) }} points away,
-            max size ≈ 1000 / {{ "%.2f"|format(result.dist_long) }} shares
-            (or equivalent notional in options).
+            <strong>Position sizing from your dollar risk:</strong><br>
+            You entered a per-trade risk of
+            <strong>${{ "%.2f"|format(result.dollar_risk) }}</strong>.
         </p>
+        <ul>
+            {% if result.shares_long %}
+            <li>
+                Long side: stop distance = {{ "%.2f"|format(result.dist_long) }} points
+                → suggested max size ≈
+                <strong>{{ "%.0f"|format(result.shares_long) }}</strong> shares.
+            </li>
+            {% endif %}
+            {% if result.shares_short %}
+            <li>
+                Short side: stop distance = {{ "%.2f"|format(result.dist_short) }} points
+                → suggested max size ≈
+                <strong>{{ "%.0f"|format(result.shares_short) }}</strong> shares.
+            </li>
+            {% endif %}
+        </ul>
+        <p>
+            Formula used: position size = dollar risk ÷ stop distance (in points).
+        </p>
+        {% endif %}
     </div>
     {% endif %}
 </body>
